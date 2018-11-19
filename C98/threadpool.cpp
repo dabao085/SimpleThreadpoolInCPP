@@ -195,7 +195,7 @@ CTask* CThreadpool::take()
 */
 void *CThreadpool::threadFunc(void * args)
 {
-    CThreadpool *pool = (CThreadpool*)args;
+    CThreadpool *pool = static_cast<CThreadpool*>(args);
     while(pool->isRunning_){
         CTask *task = pool->take();
         if(!task){
