@@ -1,42 +1,36 @@
 #include "threadpool.h"
-#include <string>
 using namespace std;
-
-class CMyTask
-{
-public:
-    int run(int i, const char *str)
-    {
-        printf("%d : %s\n", i, str);
-        return 0;
-    }
-};
 
 int main(int argc, char **argv)
 {
-    int i, input[20], output[20];
-    CMyTask task[20];
-    CThreadpool pool(1);
-
-    for(i = 0; i < 20; ++i){
-        input[i] = i;
-        pool.add(std::bind(&CMyTask::run, &task[i], i, "hello world"));
-    }
-
-    while(1){
-        printf("%d task left\n", pool.size());
-        sleep(2);
-        if(pool.size() == 0){
-            pool.stop();
-            printf("exit from main...\n");
-            break;
+    mutex mtx;
+    try{
+        CThreadpool pool;
+        vector<future<int>> v1;
+        vector<future<void>> v2;
+        
+        for(int i = 0; i < 10; ++i){
+            auto ans = pool.add([](int answer){return answer;}, i);
+            v1.push_back(std::move(ans));
         }
-    }
-    
-    for(i = 0;i < 20; ++i){
-        printf("%d ", output[i]);
-    }
-    cout << endl;
+        for(int i = 0; i < 5; ++i){
+            auto ans = pool.add([&mtx](const string& str1, const string& str2){
+                lock_guard<mutex> lg(mtx);
+                cout << str1 + str2 << endl;
+                return ;
+            }, "hello", "world");
+            v2.push_back(std::move(ans));
+        }
 
+        for(size_t i = 0; i < v1.size(); ++i){
+            lock_guard<mutex> lg(mtx);
+            cout << v1[i].get() << endl;
+        }
+        for(size_t i = 0; i < v2.size(); ++i){
+            v2[i].get();
+        }
+    }catch(exception& ex){
+        cout << ex.what() << endl;
+    }
     return 0;
 }
