@@ -14,12 +14,11 @@ public:
 
 int main(int argc, char **argv)
 {
-    int i, input[20], output[20];
+    int i;
     CMyTask task[20];
     CThreadpool pool(1);
 
     for(i = 0; i < 20; ++i){
-        input[i] = i;
         pool.add(std::bind(&CMyTask::run, &task[i], i, "hello world"));
     }
 
@@ -31,10 +30,6 @@ int main(int argc, char **argv)
             printf("exit from main...\n");
             break;
         }
-    }
-    
-    for(i = 0;i < 20; ++i){
-        printf("%d ", output[i]);
     }
     cout << endl;
 

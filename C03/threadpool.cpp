@@ -202,4 +202,6 @@ void *CThreadpool::threadFunc(void * args)
         assert(task != NULL);
         task();
     }
+
+    return NULL;
 }
