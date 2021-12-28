@@ -33,15 +33,10 @@
 #ifndef _THREADPOOL_H_
 #define _THREADPOOL_H_
 
-#include <iostream>
 #include <deque>
-#include <string>
 #include <pthread.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <assert.h>
-#include <sys/types.h>
-#include <malloc.h>
+#include <vector>
+#include <string>
 
 //任务基类
 class CTask
@@ -50,23 +45,23 @@ public:
     CTask(){}
     virtual ~CTask(){}
 public:
-    void setTaskName(void *taskName = NULL)
+    void setTaskName(const std::string& taskName)
     {
         taskName_ = taskName;
     }
-    virtual int run() = 0;    
+    virtual int run() = 0;
 protected:
-    void *taskName_;                                //任务标记
+    std::string taskName_;                                //任务标记
 };
 
 //线程池类
-class CThreadpool
+class CThreadPool
 {
 public:
-    CThreadpool(int num = 10);
-    ~CThreadpool();
+    explicit CThreadPool(int num = 10);
+    ~CThreadPool();
 public:
-    const int size();
+    int size();
     void stop();
     int add(CTask* task);
     CTask *take();
@@ -75,12 +70,12 @@ private:
     //工作线程
     static void *threadFunc(void *);
 private:
-    CThreadpool &operator=(const CThreadpool &);    //Effective C++ Item 6
-    CThreadpool(const CThreadpool &);               //Effective C++ Item 6
+    CThreadPool &operator=(const CThreadPool &);    //Effective C++ Item 6 禁止对象拷贝赋值
+    CThreadPool(const CThreadPool &);               //Effective C++ Item 6 禁止对象拷贝构造
 private:
     int threadNum_;                                 //工作线程数
     int isRunning_;                                 //线程池运行与停止状态
-    pthread_t *threads_;                            //工作线程的pthread_t id
+    pthread_t *threads_;                            //工作线程的pthread_t id, 是一个数组
     std::deque<CTask*> queue_;                      //任务队列
     pthread_mutex_t lock_;                          //mutex
     pthread_cond_t notify_;                         //condition

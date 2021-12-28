@@ -32,14 +32,20 @@
 */
 
 #include "threadpool.h"
+#include <assert.h>
+#include <sys/types.h>
+#include <malloc.h>
+#include <string>
+#include <iostream>
+#include <new>  // std::bad_alloc
 
 /**
-* @function CThreadpool
-* @brief CThreadpool's constructor
+* @function CThreadPool
+* @brief CThreadPool's constructor
 * @param num Number of worker threads.
 * @return 
 */
-CThreadpool::CThreadpool(int num)
+CThreadPool::CThreadPool(int num)
 {
     assert(num > 0);
     threadNum_ = num;
@@ -52,11 +58,11 @@ CThreadpool::CThreadpool(int num)
 }
 
 /**
-* @function ~CThreadpool
-* @brief CThreadpool's destructor
+* @function ~CThreadPool
+* @brief CThreadPool's destructor
 * @return 
 */
-CThreadpool::~CThreadpool()
+CThreadPool::~CThreadPool()
 {
     stop();
     std::deque<CTask*>::iterator iter = queue_.begin();
@@ -71,19 +77,20 @@ CThreadpool::~CThreadpool()
 * @brief create threadNum_ worker threads
 * @return 0 if succeed, -1 on failed
 */
-int CThreadpool::createThread()
+int CThreadPool::createThread()
 {
-    int i;
     pthread_mutex_init(&lock_, NULL);
     pthread_cond_init(&notify_, NULL);
 
-    threads_ = (pthread_t*)malloc(sizeof(pthread_t) * threadNum_);
-    if(threads_ == NULL){
+    //threads_ = (pthread_t*)malloc(sizeof(pthread_t) * threadNum_);
+    try{
+        threads_ = new pthread_t[threadNum_];
+    }catch(std::bad_alloc){
         std::cerr << "malloc error!" << std::endl;
         return -1;
     }
 
-    for(i = 0; i < threadNum_; ++i){
+    for(int i = 0; i < threadNum_; ++i){
         if(pthread_create(&threads_[i], NULL, threadFunc, this) != 0){
             std::cerr << "pthread_create error!" << std::endl;
             return -1;
@@ -98,11 +105,10 @@ int CThreadpool::createThread()
 * @brief return task queue's size
 * @return task queue's size
 */
-const int CThreadpool::size()
+int CThreadPool::size()
 {
-    int size;
     pthread_mutex_lock(&lock_);
-    size = queue_.size();
+    int size = queue_.size();
     pthread_mutex_unlock(&lock_);
     return size;
 }
@@ -113,7 +119,7 @@ const int CThreadpool::size()
 * @param task pointer to task which is added to task queue
 * @return 0 if succeed, -1 if failed
 */
-int CThreadpool::add(CTask *task)
+int CThreadPool::add(CTask *task)
 {
     //检查线程池是否已经停止
     pthread_mutex_lock(&lock_);
@@ -124,6 +130,7 @@ int CThreadpool::add(CTask *task)
     //否则继续向线程池添加任务
     queue_.push_back(task);
     //发送消息
+    //TODO: 这里每次都要发送一个信号吗?效率是否受影响?
     pthread_cond_signal(&notify_);
     pthread_mutex_unlock(&lock_);
 
@@ -134,7 +141,7 @@ int CThreadpool::add(CTask *task)
 * @function stop
 * @brief stop the threadpool
 */
-void CThreadpool::stop()
+void CThreadPool::stop()
 {
     int i;
     if(!isRunning_){
@@ -148,8 +155,8 @@ void CThreadpool::stop()
         pthread_join(threads_[i], NULL);
     }
 
-    //free memory
-    free(threads_);
+    //delete memory
+    delete [] threads_;
     threads_ = NULL;
 
     pthread_mutex_destroy(&lock_);
@@ -162,7 +169,7 @@ void CThreadpool::stop()
 * @brief take the task from threadpool
 * @return the pointer to task
 */
-CTask* CThreadpool::take()
+CTask* CThreadPool::take()
 {
     CTask * task = NULL;
     while(!task){
@@ -193,17 +200,19 @@ CTask* CThreadpool::take()
 * @param input param
 * @return 
 */
-void *CThreadpool::threadFunc(void * args)
+void *CThreadPool::threadFunc(void * args)
 {
-    CThreadpool *pool = static_cast<CThreadpool*>(args);
+    CThreadPool *pool = static_cast<CThreadPool*>(args);
     while(pool->isRunning_){
         CTask *task = pool->take();
         if(!task){
-            printf("thread %ld exit\n", pthread_self());
+            std::cout << "thread " << pthread_self() << " exit" << std::endl;
             break;
         }
 
         assert(task != NULL);
         task->run();
     }
+
+    return NULL;
 }
