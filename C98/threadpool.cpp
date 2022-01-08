@@ -45,14 +45,12 @@
 * @param num Number of worker threads.
 * @return 
 */
-CThreadPool::CThreadPool(int num)
+CThreadPool::CThreadPool(int num):isRunning_(true), threadNum_(num), threads_(NULL)
 {
-    assert(num > 0);
-    threadNum_ = num;
-    isRunning_ = true;
-    threads_ = NULL;
+    assert(threadNum_ > 0);
 
     if(createThread() < 0){
+        // 还要做别的错误处理吗？
         std::cerr << "createThread error!" << std::endl;
     }
 }
@@ -85,8 +83,12 @@ int CThreadPool::createThread()
     //threads_ = (pthread_t*)malloc(sizeof(pthread_t) * threadNum_);
     try{
         threads_ = new pthread_t[threadNum_];
-    }catch(std::bad_alloc){
-        std::cerr << "malloc error!" << std::endl;
+    }catch(const std::bad_alloc& err){
+        std::cerr << "malloc error! " << err.what() << std::endl;
+
+        pthread_mutex_destroy(&lock_);
+        pthread_cond_destroy(&notify_);
+
         return -1;
     }
 
@@ -105,10 +107,10 @@ int CThreadPool::createThread()
 * @brief return task queue's size
 * @return task queue's size
 */
-int CThreadPool::size()
+size_t CThreadPool::size()
 {
     pthread_mutex_lock(&lock_);
-    int size = queue_.size();
+    size_t size = queue_.size();
     pthread_mutex_unlock(&lock_);
     return size;
 }
@@ -119,18 +121,19 @@ int CThreadPool::size()
 * @param task pointer to task which is added to task queue
 * @return 0 if succeed, -1 if failed
 */
-int CThreadPool::add(CTask *task)
+int CThreadPool::addTask(CTask *task)
 {
     //检查线程池是否已经停止
     pthread_mutex_lock(&lock_);
     if(!isRunning_){
+        pthread_mutex_unlock(&lock_);
         return -1;
     }
 
     //否则继续向线程池添加任务
     queue_.push_back(task);
     //发送消息
-    //TODO: 这里每次都要发送一个信号吗?效率是否受影响?
+    //TODO: 这里每次都要发送一个信号吗?效率是否受影响? unlock放在signal之前还是之后好？
     pthread_cond_signal(&notify_);
     pthread_mutex_unlock(&lock_);
 
@@ -143,7 +146,7 @@ int CThreadPool::add(CTask *task)
 */
 void CThreadPool::stop()
 {
-    int i;
+    // TODO: 这里需要加锁来保护isRunning_吗？
     if(!isRunning_){
         return ;
     }
@@ -151,7 +154,7 @@ void CThreadPool::stop()
     isRunning_ = false;
     pthread_cond_broadcast(&notify_);
     //thread_join
-    for(i = 0; i < threadNum_; ++i){
+    for(int i = 0; i < threadNum_; ++i){
         pthread_join(threads_[i], NULL);
     }
 
@@ -169,7 +172,7 @@ void CThreadPool::stop()
 * @brief take the task from threadpool
 * @return the pointer to task
 */
-CTask* CThreadPool::take()
+CTask* CThreadPool::takeTask()
 {
     CTask * task = NULL;
     while(!task){
@@ -191,6 +194,7 @@ CTask* CThreadPool::take()
         assert(task != NULL);
         pthread_mutex_unlock(&lock_);
     }
+
     return task;
 }
 
@@ -202,9 +206,11 @@ CTask* CThreadPool::take()
 */
 void *CThreadPool::threadFunc(void * args)
 {
+    assert(args != NULL);
     CThreadPool *pool = static_cast<CThreadPool*>(args);
+    // TODO: 这里pool->isRunning_是否需要加锁保护呢？
     while(pool->isRunning_){
-        CTask *task = pool->take();
+        CTask *task = pool->takeTask();
         if(!task){
             std::cout << "thread " << pthread_self() << " exit" << std::endl;
             break;

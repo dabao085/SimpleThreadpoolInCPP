@@ -16,7 +16,7 @@ public:
     {
         int *p = static_cast<int*>(inputParam_);
         *p = *p * 2;
-        *(int*)outputParam_ = *p;
+        *(int*)outputParam_ = *p;   // TODO: 这里如何修改成C++中的转型？
         cout << pthread_self() << " hello world" << endl;
         return 0;
     }
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
         input[i] = i;
         // CMyTask task((void*)&input[i], (void*)&output[i]);
         task[i].setParam(static_cast<void*>(&input[i]), static_cast<void*>(&output[i]));
-        pool.add(&task[i]);
+        pool.addTask(&task[i]);
     }
 
     while(1){

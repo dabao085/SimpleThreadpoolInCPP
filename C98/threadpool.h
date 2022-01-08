@@ -61,10 +61,10 @@ public:
     explicit CThreadPool(int num = 10);
     ~CThreadPool();
 public:
-    int size();
+    size_t size();
     void stop();
-    int add(CTask* task);
-    CTask *take();
+    int addTask(CTask* task);
+    CTask *takeTask();
 private:
     int createThread();
     //工作线程
@@ -73,8 +73,8 @@ private:
     CThreadPool &operator=(const CThreadPool &);    //Effective C++ Item 6 禁止对象拷贝赋值
     CThreadPool(const CThreadPool &);               //Effective C++ Item 6 禁止对象拷贝构造
 private:
+    volatile int isRunning_;                        //线程池运行与停止状态
     int threadNum_;                                 //工作线程数
-    int isRunning_;                                 //线程池运行与停止状态
     pthread_t *threads_;                            //工作线程的pthread_t id, 是一个数组
     std::deque<CTask*> queue_;                      //任务队列
     pthread_mutex_t lock_;                          //mutex
